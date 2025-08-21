@@ -1,40 +1,32 @@
 ﻿using Resto.Front.Api.Attributes.JetBrains;
-using Resto.Front.Api.BankPayments.Interfaces.Services;
+using Resto.Front.Api.BankPayments.Interfaces.Services.BangkokBank;
 using Resto.Front.Api.Data.Orders;
 using Resto.Front.Api.Data.Organization;
 using Resto.Front.Api.Data.Payments;
 using Resto.Front.Api.Data.Security;
 using Resto.Front.Api.UI;
 using System;
-using System.Reactive.Disposables;
 
-namespace Resto.Front.Api.BankPayments.Services
+namespace Resto.Front.Api.BankPayments.Services.BangkokBank
 {
-    public class KasikornBankPaymentService : IKasikornBankPaymentService
+    public class BangkokBankPaymnetService : IBangkokBankPaymentService
     {
-        public string PaymentSystemKey { get; }
-        public string PaymentSystemName { get; }
-        private readonly CompositeDisposable subscriptions = new CompositeDisposable();
-        public KasikornBankPaymentService()
-        {
-            PaymentSystemName = "KasikornBankPayment";
-            PaymentSystemKey = "KasikornBankPayment";
-            subscriptions.Add(PluginContext.Operations.RegisterPaymentSystem(this));
-        }
+        public string PaymentSystemKey => throw new NotImplementedException();
 
-        public void Dispose()
-        {
-            subscriptions?.Dispose();
-        }
+        public string PaymentSystemName => throw new NotImplementedException();
 
         public bool CanPaySilently(decimal sum, Guid? orderId, Guid paymentTypeId, IPaymentDataContext context)
         {
-            return false;
+            throw new NotImplementedException();
         }
 
         public void CollectData(Guid orderId, Guid paymentTypeId, [NotNull] IUser cashier, IReceiptPrinter printer, IViewManager viewManager, IPaymentDataContext context)
         {
             throw new NotImplementedException();
+        }
+
+        public void Dispose()
+        {
         }
 
         public void EmergencyCancelPayment(decimal sum, Guid? orderId, Guid paymentTypeId, Guid transactionId, [NotNull] IPointOfSale pointOfSale, [NotNull] IUser cashier, IReceiptPrinter printer, IViewManager viewManager, IPaymentDataContext context)
