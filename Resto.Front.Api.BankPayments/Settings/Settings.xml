@@ -1,21 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <Settings>
-	<Kasikorn>
-		<Id>DXG07ugIwDktExn1DjpdPPbDGoXzarDa</Id>
-		<Secret>KkOWi8jvloKMZPax</Secret>
-		<AddressApi>https://openapi-sandbox.kasikornbank.com</AddressApi>
-		<MerchantId>KB102057149704</MerchantId>
-		<PartnerId>PTR1051673</PartnerId>
-		<PartnerSecret>d4bded59200547bc85903574a293831b</PartnerSecret>
-		<PartnerTxnUid>PARTNERTEST0001</PartnerTxnUid>
-		<RetriesCount>5</RetriesCount>
-	</Kasikorn>
-	<Bangkok>
-		<Id>QVK1M1W20kHyaqzsLXTdzhsrWLgOH1hH</Id>
-		<Secret>5E9xc4vJbTGibdxh</Secret>
-		<AddressApi>https://api-sandbox.bangkokbank.com</AddressApi>
-		<BillerId>250717203152706</BillerId>
-		<MerchantName>My Merchant</MerchantName>
-		<RetriesCount>5</RetriesCount>
-	</Bangkok>
+	<PromptPay>
+		<Account>0801234567</Account>
+		<AddressApi>https://promptpay.io/</AddressApi>
+	</PromptPay>
 </Settings>

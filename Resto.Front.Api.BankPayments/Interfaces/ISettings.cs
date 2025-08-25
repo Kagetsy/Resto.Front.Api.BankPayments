@@ -4,7 +4,6 @@ namespace Resto.Front.Api.BankPayments.Interfaces
 {
     public interface ISettings
     {
-        SettingsKasikorn Kasikorn { get; set; }
-        SettingsBangkok Bangkok { get; set; }
+        SettingsPromptPay PromptPay { get; set; }
     }
 }

@@ -1,9 +1,9 @@
-﻿using Resto.Front.Api.Attributes.JetBrains;
-using Resto.Front.Api.BankPayments.Entities;
-using Resto.Front.Api.BankPayments.Entities.Kasikorn;
-using Resto.Front.Api.BankPayments.Helpers.KasikornBank;
-using Resto.Front.Api.BankPayments.Interfaces;
-using Resto.Front.Api.BankPayments.Interfaces.Services.KasikornBank;
+﻿using QRCoder;
+using Resto.Front.Api.Attributes.JetBrains;
+using Resto.Front.Api.BankPayments.Entities.PromptPay;
+using Resto.Front.Api.BankPayments.Helpers;
+using Resto.Front.Api.BankPayments.Interfaces.Services.PromptPay;
+using Resto.Front.Api.BankPayments.Settings;
 using Resto.Front.Api.Data.Cheques;
 using Resto.Front.Api.Data.Orders;
 using Resto.Front.Api.Data.Organization;
@@ -12,32 +12,35 @@ using Resto.Front.Api.Data.Security;
 using Resto.Front.Api.Extensions;
 using Resto.Front.Api.UI;
 using System;
+using System.Drawing;
 using System.Linq;
 using System.Reactive.Disposables;
+using System.Text;
 using System.Threading;
 using System.Xml.Linq;
+using static QRCoder.PayloadGenerator;
 
-namespace Resto.Front.Api.BankPayments.Services.KasikornBank
+namespace Resto.Front.Api.BankPayments.Services.PromptPay
 {
-    public class KasikornBankPaymentService : IKasikornBankPaymentService
+    public class PromptPayPaymentService : IPromptPayPaymentService
     {
         public string PaymentSystemKey { get; }
         public string PaymentSystemName { get; }
-        private readonly CompositeDisposable subscriptions = new CompositeDisposable();
-        private readonly ISettings settings;
-        private readonly IKasikornBankApiService kasikornBankApiService;
+        private readonly string addressApi;
+        private readonly string account;
         private readonly CancellationToken cancellationToken;
         private readonly CancellationTokenSource cancellationSource;
-        public KasikornBankPaymentService(ISettings settings)
+        private readonly CompositeDisposable subscriptions = new CompositeDisposable();
+        public PromptPayPaymentService(SettingsPromptPay settingsPromptPay)
         {
-            this.settings = settings;
-            this.kasikornBankApiService = new KasikornBankApiService(settings);
+            addressApi = settingsPromptPay.AddressApi;
+            account = settingsPromptPay.Account;
             cancellationSource = new CancellationTokenSource();
             cancellationToken = cancellationSource.Token;
-            PaymentSystemName = "KasikornBankPayment";
-            PaymentSystemKey = "KasikornBankPayment";
+            PaymentSystemName = "PromptPayBankPayment";
+            PaymentSystemKey = "PromptPayBankPayment";
             subscriptions.Add(PluginContext.Operations.RegisterPaymentSystem(this));
-            PluginContext.Log.Warn("KasikornBankPaymentService was registered.");
+            PluginContext.Log.Info($"[{nameof(PromptPayPaymentService)}] was registered.");
         }
 
         public void Dispose()
@@ -55,23 +58,37 @@ namespace Resto.Front.Api.BankPayments.Services.KasikornBank
             try
             {
                 var user = PluginContext.Operations.GetCurrentUser()?.Name;
-                PluginContext.Log.Info($"CollectData: Current user {user}");
+                PluginContext.Log.Info($"[{nameof(PromptPayPaymentService)}|{nameof(CollectData)}]: Current user {user}");
                 var order = PluginContext.Operations.GetOrderById(orderId);
                 if (order is null)
                     return;
+                var dataQr = string.Empty;
+                byte[] urlBytes = Encoding.UTF8.GetBytes($"{addressApi}/{account}/{order.ResultSum}");
 
-                var generateQrResponse = kasikornBankApiService.GenerateQRCode(order.ResultSum, cancellationToken);
-                var resultGenerateQrResponse = generateQrResponse.Result;
+                // Convert the byte array to a Base64 string
+                string base64String = Convert.ToBase64String(urlBytes);
+                Bitmap qrCodeAsBitmap = null;
+                using (QRCodeGenerator qrGenerator = new QRCodeGenerator())
+                {
+                    Url generator = new Url($"{addressApi}/{account}/{order.ResultSum}");
+                    string payload = generator.ToString();
+                    using (QRCodeData qrCodeData = qrGenerator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.Q))
+                    {
+                        QRCode qrCode = new QRCode(qrCodeData);
+                        qrCodeAsBitmap = qrCode.GetGraphic(20);
+                    }
+                }
                 var data = new CollectedData
                 {
-                    origPartnerTxnUid = resultGenerateQrResponse.partnerTxnUid,
-                    qrCode = resultGenerateQrResponse.qrCode,
+                    QrCode = base64String,
+                    User = user,
                 };
+                
                 context.SetRollbackData(data);
                 var slip = new ReceiptSlip
                 {
                     Doc = new XElement(Tags.Doc,
-                        new XElement(Tags.QRCode, data.qrCode))
+                        new XElement(Tags.QRCode, $"https://promptpay.io/{account}/{order.ResultSum}"))
                 };
                 printer.Print(slip);
             }
@@ -83,7 +100,6 @@ namespace Resto.Front.Api.BankPayments.Services.KasikornBank
 
         public void EmergencyCancelPayment(decimal sum, Guid? orderId, Guid paymentTypeId, Guid transactionId, [NotNull] IPointOfSale pointOfSale, [NotNull] IUser cashier, IReceiptPrinter printer, IViewManager viewManager, IPaymentDataContext context)
         {
-            PluginContext.Log.InfoFormat("Cancel {0}", sum);
             ReturnPayment(sum, orderId, paymentTypeId, transactionId, pointOfSale, cashier, printer, viewManager, context);
         }
 
@@ -97,29 +113,18 @@ namespace Resto.Front.Api.BankPayments.Services.KasikornBank
             var data = context.GetRollbackData<CollectedData>();
             if (data == null)
             {
-                PluginContext.Log.Error($"[{nameof(KasikornBankPaymentService)}|{nameof(OnPaymentAdded)}] Not found qrCode info for order {order.Id} - {order.Number}");
+                PluginContext.Log.Error($"[{nameof(PromptPayPaymentService)}|{nameof(OnPaymentAdded)}] Not found qrCode info for order {order.Id} - {order.Number}");
                 operationService.DeletePaymentItem(paymentItem, order, credits);
                 viewManager.ShowErrorPopup($"Not found qrCode info for order {order.Number}!");
                 return;
             }
-            var statusResult = KasikornPaymentHelper.GetStatusQr(kasikornBankApiService, cancellationToken, data, order, viewManager, TransactionStatusEnum.PAID);
-            if (statusResult.statusCode != StatusCodeEnum.Error)
-                return;
 
-            if (statusResult.txnStatus == TransactionStatusEnum.PAID)
+            var vm = viewManager.ShowOkCancelPopup("Customer paid?", "Did customer pay bill?");
+            if (!vm)
             {
-                var userResult = viewManager.ShowOkCancelPopup("Need return for payment", $"Need return for payment {order.Number}?", "Ok", "Cancel");
-                if (userResult)
-                {
-                    var returnResult = KasikornPaymentHelper.ReturnPaymentQr(kasikornBankApiService, cancellationToken, data, order, viewManager);
-                    if (returnResult)
-                        OnPaymentDeleting(order, paymentItem, cashier, operationService, printer, viewManager, context);
-                }
-            }
-            else
-            {
-                var cancelPayment = kasikornBankApiService.CancelQrCode(data.origPartnerTxnUid, cancellationToken);
-                OnPaymentDeleting(order, paymentItem, cashier, operationService, printer, viewManager, context);
+                vm = viewManager.ShowOkCancelPopup("Wait?", "should we wait here?");
+                if (!vm)
+                    OnPaymentDeleting(order, paymentItem, cashier, operationService, printer, viewManager, context);
             }
         }
 
@@ -146,7 +151,7 @@ namespace Resto.Front.Api.BankPayments.Services.KasikornBank
             var data = context.GetRollbackData<CollectedData>();
             if (data == null)
             {
-                PluginContext.Log.Error($"[{nameof(KasikornBankPaymentService)}|{nameof(OnPaymentAdded)}] Pay Not found qrCode info for order {order.Id} - {order.Number}");
+                PluginContext.Log.Error($"[{nameof(PromptPayPaymentService)}|{nameof(Pay)}] Pay Not found qrCode info for order {order.Id} - {order.Number}");
                 viewManager.ShowErrorPopup($"Not found qrCode info for order {order.Number}!");
                 return;
             }
@@ -189,7 +194,7 @@ namespace Resto.Front.Api.BankPayments.Services.KasikornBank
                 };
 
                 printer.Print(slip);
-                context.SetInfoForReports(data.origPartnerTxnUid, PaymentSystemName);
+                context.SetInfoForReports(data.QrCode, PaymentSystemName);
                 var paymentType = operationService.GetPaymentTypes().Single(i => i.Kind == PaymentTypeKind.Card && i.Name == PaymentSystemName);
                 if (paymentType != null)
                 {
@@ -247,9 +252,7 @@ namespace Resto.Front.Api.BankPayments.Services.KasikornBank
                         new XAttribute(Data.Cheques.Attributes.Fit, Data.Cheques.Attributes.Right)))
             };
             printer.Print(slip);
-            var returnResult = KasikornPaymentHelper.ReturnPaymentQr(kasikornBankApiService, cancellationToken, data, order, viewManager);
-            if (!returnResult)
-                PluginContext.Log.Info($"ReturnPayment: Error return payment for orderId {orderId}");
+            
         }
 
         public void ReturnPaymentSilently(decimal sum, Guid? orderId, Guid paymentTypeId, Guid transactionId, [NotNull] IPointOfSale pointOfSale, [NotNull] IUser cashier, IReceiptPrinter printer, IPaymentDataContext context)
