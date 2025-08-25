@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "RunDebug": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Program Files\\Syrve\\SyrveRMS_9.2\\Front.Net\\Resto.Front.Api.Host.exe",
+      "commandLineArgs": "/a=C:\\Users\\dev\\source\\repos\\Resto.Front.Api.BankPayments\\Resto.Front.Api.BankPayments\\bin\\Debug\\net472\\Resto.Front.Api.BankPayments.dll /c=Resto.Front.Api.BankPayments.BankPaymentsPlugin /m=21016318 /l=C:\\Users\\dev\\source\\repos\\Resto.Front.Api.BankPayments\\Resto.Front.Api.BankPayments\\bin\\Debug\\net472\\debug.log"
+    }
+  }
+}

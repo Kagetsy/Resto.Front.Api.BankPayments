@@ -1,5 +1,4 @@
-﻿using QRCoder;
-using Resto.Front.Api.Attributes.JetBrains;
+﻿using Resto.Front.Api.Attributes.JetBrains;
 using Resto.Front.Api.BankPayments.Entities.PromptPay;
 using Resto.Front.Api.BankPayments.Helpers;
 using Resto.Front.Api.BankPayments.Interfaces.Services.PromptPay;
@@ -15,10 +14,10 @@ using System;
 using System.Drawing;
 using System.Linq;
 using System.Reactive.Disposables;
+using System.Security.Policy;
 using System.Text;
 using System.Threading;
 using System.Xml.Linq;
-using static QRCoder.PayloadGenerator;
 
 namespace Resto.Front.Api.BankPayments.Services.PromptPay
 {
@@ -37,7 +36,7 @@ namespace Resto.Front.Api.BankPayments.Services.PromptPay
             account = settingsPromptPay.Account;
             cancellationSource = new CancellationTokenSource();
             cancellationToken = cancellationSource.Token;
-            PaymentSystemName = "PromptPayBankPayment";
+            PaymentSystemName = settingsPromptPay.PaymentSystemName;
             PaymentSystemKey = "PromptPayBankPayment";
             subscriptions.Add(PluginContext.Operations.RegisterPaymentSystem(this));
             PluginContext.Log.Info($"[{nameof(PromptPayPaymentService)}] was registered.");
@@ -62,33 +61,17 @@ namespace Resto.Front.Api.BankPayments.Services.PromptPay
                 var order = PluginContext.Operations.GetOrderById(orderId);
                 if (order is null)
                     return;
-                var dataQr = string.Empty;
-                byte[] urlBytes = Encoding.UTF8.GetBytes($"{addressApi}/{account}/{order.ResultSum}");
-
-                // Convert the byte array to a Base64 string
-                string base64String = Convert.ToBase64String(urlBytes);
-                Bitmap qrCodeAsBitmap = null;
-                using (QRCodeGenerator qrGenerator = new QRCodeGenerator())
-                {
-                    Url generator = new Url($"{addressApi}/{account}/{order.ResultSum}");
-                    string payload = generator.ToString();
-                    using (QRCodeData qrCodeData = qrGenerator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.Q))
-                    {
-                        QRCode qrCode = new QRCode(qrCodeData);
-                        qrCodeAsBitmap = qrCode.GetGraphic(20);
-                    }
-                }
+                var addressPayment = $"{addressApi}/{account}/{order.ResultSum}";
                 var data = new CollectedData
                 {
-                    QrCode = base64String,
+                    QrCode = addressPayment,
                     User = user,
                 };
-                
                 context.SetRollbackData(data);
                 var slip = new ReceiptSlip
                 {
                     Doc = new XElement(Tags.Doc,
-                        new XElement(Tags.QRCode, $"https://promptpay.io/{account}/{order.ResultSum}"))
+                        new XElement(Tags.QRCode, addressPayment))
                 };
                 printer.Print(slip);
             }
@@ -195,7 +178,7 @@ namespace Resto.Front.Api.BankPayments.Services.PromptPay
 
                 printer.Print(slip);
                 context.SetInfoForReports(data.QrCode, PaymentSystemName);
-                var paymentType = operationService.GetPaymentTypes().Single(i => i.Kind == PaymentTypeKind.Card && i.Name == PaymentSystemName);
+                var paymentType = operationService.GetPaymentTypes().Single(i => i.Kind == PaymentTypeKind.External && i.Name == PaymentSystemName);
                 if (paymentType != null)
                 {
                     context.SetRollbackData(data);

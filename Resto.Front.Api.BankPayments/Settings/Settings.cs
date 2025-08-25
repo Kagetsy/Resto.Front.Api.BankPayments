@@ -71,6 +71,8 @@ namespace Resto.Front.Api.BankPayments.Settings
 
         private string addressApiField;
 
+        private string paymentSystemNameField;
+
         /// <remarks/>
         public string Account
         {
@@ -94,6 +96,19 @@ namespace Resto.Front.Api.BankPayments.Settings
             set
             {
                 this.addressApiField = value;
+            }
+        }
+
+        /// <remarks/>
+        public string PaymentSystemName
+        {
+            get
+            {
+                return this.paymentSystemNameField;
+            }
+            set
+            {
+                this.paymentSystemNameField = value;
             }
         }
     }

@@ -2,6 +2,7 @@
 <Settings>
 	<PromptPay>
 		<Account>0801234567</Account>
-		<AddressApi>https://promptpay.io/</AddressApi>
+		<AddressApi>https://promptpay.io</AddressApi>
+		<PaymentSystemName>Prompt payment</PaymentSystemName>
 	</PromptPay>
 </Settings>
